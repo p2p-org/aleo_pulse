@@ -138,9 +138,8 @@ def check_wmem_max():
   else:
       print("for best network performance, increase maximum socket send buffer size with `sysctl -w net.core.wmem_max=104857600`")
 
-
-
 #------- End of checks ---
+
 def check_pulse(mode):
     #print(Requirements['client']['cpu'])
     check_timesyncd_synchronized()
@@ -151,6 +150,7 @@ def check_pulse(mode):
     check_cpu_governor()
     check_rmem_max()
     check_wmem_max()
+
 
 if __name__ == "__main__":
     check_pulse(args.mode)
