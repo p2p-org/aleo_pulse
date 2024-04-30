@@ -7,6 +7,7 @@ import speedtest
 import shutil
 import multiprocessing
 import glob
+import subprocess
 
 
 parser = argparse.ArgumentParser(
@@ -124,19 +125,27 @@ def check_cpu_governor():
             print("CPU governor detected that is not set to performance")
 
 def check_rmem_max():
-  output = os.system("cat /proc/sys/net/core/rmem_max")
-  if int(output) >= MINIMUM_RMEM_MAX:
-      print("Socket recieve buffer ok")
-  else:
-      print("for best network performance, increase maximum socket receive buffer size with `sysctl -w net.core.rmem_max=104857600`")
+    output = os.system("cat /proc/sys/net/core/rmem_max")
+    if int(output) >= MINIMUM_RMEM_MAX:
+        print("Socket recieve buffer ok")
+    else:
+        print("for best network performance, increase maximum socket receive buffer size with `sysctl -w net.core.rmem_max=104857600`")
 
 
 def check_wmem_max():
-  output = os.system("cat /proc/sys/net/core/wmem_max")
-  if int(output) >= MINIMUM_WMEM_MAX:
-      print("Maximum socker send buffer ok")
-  else:
-      print("for best network performance, increase maximum socket send buffer size with `sysctl -w net.core.wmem_max=104857600`")
+    output = os.system("cat /proc/sys/net/core/wmem_max")
+    if int(output) >= MINIMUM_WMEM_MAX:
+        print("Maximum socker send buffer ok")
+    else:
+        print("for best network performance, increase maximum socket send buffer size with `sysctl -w net.core.wmem_max=104857600`")
+
+def check_swapoff():
+    output = subprocess.getoutput("/usr/sbin/swapon -s")
+    if output != '':
+        print("Swap should be disabled for best perfomance. Use `swapoff -a` for disabling swap")
+    else:
+        print("Swap configuration is OK")
+
 
 #------- End of checks ---
 
@@ -150,6 +159,8 @@ def check_pulse(mode):
     check_cpu_governor()
     check_rmem_max()
     check_wmem_max()
+    check_swapoff()
+
 
 
 if __name__ == "__main__":

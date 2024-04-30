@@ -29,3 +29,5 @@ For checking system for validator setup execute it:
 - pack in docker
 - tests
 - One 2 All connectivity test(in mainnet)
+- ~check swap off~
+
