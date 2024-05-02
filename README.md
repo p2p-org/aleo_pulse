@@ -3,27 +3,63 @@
 ### About:
 Aleo-pulse is simple python script inspired by [sui-doctor](https://github.com/MystenLabs/sui-doctor) that allow you to check basic configuration of server/workstation, where aleo is executing. It can be useful if you dont have automation for server/workstation configuration and want to doublecheck that your setup is correct.
 
-### Requirements:
-- python3+
-- ubuntu
-- docker(for future version packed in docker)
 
-### Checks:
-- time synced
-- net bandwidth
-- disk size
-- num CPU
-- GPU
-- cpu governor
-- rmem_max
-- wmem_max
+## Features
 
-### Usage:
-Aleo-pulse can be used with 3 flags for 3 different ways of aleo execution(as client, as prover, as validator)
-For checking system for validator setup execute it: 
+- Check time synchronization
+- Check network bandwidth
+- Check disk size
+- Check number of CPUs
+- Check GPU (for prover mode)
+- Check CPU governor
+- Check `rmem_max` and `wmem_max` kernel parameters
+- Check swap configuration
+- Check Aleo client and its dependencies
 
-	git clone git@github.com:caligo8658/aleo_pulse.git
-	./aleo-pulse.py validator
+## Requirements:
+
+- Python3+
+- speedtest-cli package (`pip install speedtest-cli`)
+- Operating system: Ubuntu, Debian, CentOS, macOS
+- docker (for future version packed in docker)
+
+## Installation
+
+1. Clone the repository
+
+    git clone git@github.com:caligo8658/aleo_pulse.git
+
+2. Navigate to the project directory
+
+    cd aleo-pulse
+
+3. Install the speedtest-cli package
+
+    pip install speedtest-cli
+
+4. Make the script executable
+
+    chmod +x aleo-pulse.py
+
+## License
+
+This project is licensed under the Apache 2 License
+
+## Usage
+
+Run the script with the desired mode
+
+    ./aleo-pulse.py MODE
+
+Replace `MODE` with one of the following:
+
+- `client`: Check configuration for running Aleo as a client
+- `prover`: Check configuration for running Aleo as a prover
+- `validator`: Check configuration for running Aleo as a validator
+
+Example:
+
+    ./aleo-pulse.py validator
 
 ### TODO:
 - pack in docker
