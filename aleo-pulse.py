@@ -108,15 +108,39 @@ def check_timesyncd_synchronized():
             return False
     elif os_name == 'Darwin':
         try:
-            output = subprocess.check_output(['sntp', '-s'], stderr=subprocess.STDOUT, text=True)
-            if "NTP synchronized: yes" in output:
-                print(f"{OK_PREFIX}Time is synchronized.")
-                return True
+            # Getting info about time server from the config
+            time_server = None
+            with open("/etc/ntp.conf", "r") as file:
+                lines = file.readlines()
+                for line in lines:
+                    if line.startswith("server"):
+                        time_server = line.split()[1]
+                        break
+
+            if time_server:
+                print(f"{OK_PREFIX}Time server is specified: {time_server}")
+
+                # Checking time offset with the specified server
+                output = subprocess.check_output(['sntp', '-t', '1', time_server], stderr=subprocess.STDOUT, text=True)
+                offset = float(output.split()[0])
+                if abs(offset) < 1.0:  # Acceptable offset is 1 second
+                    print(f"{OK_PREFIX}Time is synchronized. Offset: {offset} seconds.")
+                    return True
+                else:
+                    print(f"{FAIL_PREFIX}Time is not synchronized. Offset: {offset} seconds.")
+                    return False
             else:
-                print(f"{FAIL_PREFIX}Time not synced. Check your NTP daemon.")
+                print(f"{FAIL_PREFIX}Time server is not specified.")
                 return False
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print(f"{FAIL_PREFIX}'sntp' command not found. This command in required in your OS to check time synced")
+
+        except FileNotFoundError as e:
+            print(f"{FAIL_PREFIX}Error: {e}")
+            return False
+        except subprocess.CalledProcessError as e:
+            print(f"{FAIL_PREFIX}Failed to check time synchronization: {e}")
+            return False
+        except (IndexError, ValueError):
+            print(f"{FAIL_PREFIX}Failed to parse sntp output.")
             return False
     else:
         print(f"{FAIL_PREFIX}Aleo-pulse doesn't support OS: {os_name}")
@@ -242,9 +266,52 @@ def check_num_cpus(mode=args.mode):
 
 def check_gpu(mode=args.mode):
     if mode == 'prover':
-        print("Check your GPU fits here: https://developer.nvidia.com/cuda-gpus")
+        os_name = get_os()
+        if os_name == 'Linux':
+            try:
+                output = subprocess.check_output(['nvidia-smi'], stderr=subprocess.STDOUT, text=True)
+                if 'NVIDIA-SMI' in output:
+                    gpu_info = output.split('\n')[5].split('|')[1].strip()
+                    print(f"{OK_PREFIX}GPU detected: {gpu_info}")
+
+                    # Check CUDA compatibility
+                    if 'CUDA' in output:
+                        print(f"{OK_PREFIX}GPU is CUDA compatible.")
+                        return True
+                    else:
+                        print(
+                            f"{FAIL_PREFIX}GPU is not CUDA compatible. Please check https://developer.nvidia.com/cuda-gpus for compatible GPUs.")
+                        return False
+                else:
+                    print(
+                        f"{FAIL_PREFIX}No NVIDIA GPU detected. Please check https://developer.nvidia.com/cuda-gpus for compatible GPUs.")
+                    return False
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(
+                    f"{FAIL_PREFIX}Failed to detect GPU. Please ensure you have an NVIDIA GPU and the NVIDIA driver is installed.")
+                return False
+        elif os_name == 'Darwin':
+            try:
+                output = subprocess.check_output(['system_profiler', 'SPDisplaysDataType'], stderr=subprocess.STDOUT, text=True)
+                if 'Vendor: NVIDIA' in output:
+                    gpu_info = output.split('Vendor: NVIDIA')[1].split('\n')[0].strip()
+                    print(f"{OK_PREFIX}GPU detected: {gpu_info}")
+                    print(
+                        f"{OK_PREFIX}Please ensure your NVIDIA GPU is CUDA compatible. Check https://developer.nvidia.com/cuda-gpus for compatible GPUs.")
+                    return True
+                else:
+                    print(
+                        f"{FAIL_PREFIX}No NVIDIA GPU detected. Please check https://developer.nvidia.com/cuda-gpus for compatible GPUs.")
+                    return False
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(f"{FAIL_PREFIX}Failed to detect GPU. Please ensure you have an NVIDIA GPU.")
+                return False
+        else:
+            print(f"{FAIL_PREFIX}GPU check is not supported on your OS: {os_name}")
+            return False
     else:
-        print(f"{OK_PREFIX}GPU is not required for your mode")
+        print(f"{OK_PREFIX}GPU is not required for your mode.")
+        return True
 
 
 def detect_net_bandwidth():
