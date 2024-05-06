@@ -1,14 +1,12 @@
-#!/usr/bin/python3
 import os
 import argparse
 import sys
-import subprocess
 import speedtest
 import shutil
 import multiprocessing
 import glob
 import subprocess
-
+import platform
 
 parser = argparse.ArgumentParser(
     description="Aleo-pulse is a simple script that allow you to find typical misconfig errors")
@@ -18,6 +16,7 @@ parser.add_argument('mode', help='Mode of aleo (e.g. client, validator, prover)'
 args = parser.parse_args()
 aleo_modes = ['client', 'validator', 'prover']
 
+
 def check_mode(mode, aleo_modes):
     if mode in aleo_modes:
         # mode OK, go on
@@ -25,144 +24,284 @@ def check_mode(mode, aleo_modes):
     else:
         sys.exit("Mode is not OK. Mode should be 'client', 'validator' or 'prover'")
 
-check_mode(args.mode, aleo_modes) # check if args correct
+
+check_mode(args.mode, aleo_modes)  # check if args correct
 
 MINIMUM_RMEM_MAX = 104857600
 MINIMUM_WMEM_MAX = 104857600
 
+OK_PREFIX = '[+] '
+FAIL_PREFIX = '[-] '
+
 Requirements = {
-    'client':    {'cpu':16, 'ram':16, 'storage': 64,   'network': 100, 'gpu': 'none'},
-    'prover':    {'cpu':32, 'ram':32, 'storage': 128,  'network': 250, 'gpu': 'CUDA'},
-    'validator': {'cpu':32, 'ram':64, 'storage': 2000, 'network': 500, 'gpu': 'none'},
+    'client':    {'cpu': 16, 'ram': 16, 'storage': 64,   'network': 100, 'gpu': 'none'},
+    'prover':    {'cpu': 32, 'ram': 32, 'storage': 128,  'network': 250, 'gpu': 'CUDA'},
+    'validator': {'cpu': 32, 'ram': 64, 'storage': 2000, 'network': 500, 'gpu': 'none'},
     }
+
+
+def get_os():
+    return platform.system()
+
+
+def get_linux_distro():
+    return platform.dist()[0].lower()
+
+
+def check_aleo_client():
+    try:
+        output = subprocess.check_output(['aleo', '--version'], stderr=subprocess.STDOUT, text=True)
+        print(f"{OK_PREFIX}Aleo Client is installed. Version: {output.strip()}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"{FAIL_PREFIX}Aleo Client is not installed.")
+
+
+def check_aleo_dependencies():
+    try:
+        rust_version = subprocess.check_output(['rustc', '--version'], stderr=subprocess.STDOUT, text=True)
+        print(f"{OK_PREFIX}Rust is installed. Version: {rust_version.strip()}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"{FAIL_PREFIX}Rust is not installed.")
+
+    try:
+        pkg_config_version = subprocess.check_output(['pkg-config', '--version'], stderr=subprocess.STDOUT, text=True)
+        print(f"{OK_PREFIX}pkg-config is installed. Version: {pkg_config_version.strip()}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"{FAIL_PREFIX}pkg-config is not installed.")
+
+    try:
+        gcc_version = subprocess.check_output(['gcc', '--version'], stderr=subprocess.STDOUT, text=True)
+        print(f"{OK_PREFIX}GCC is installed. Version: {gcc_version.strip().split()[0]}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"{FAIL_PREFIX}GCC is not installed. Please install it and try again.")
+
+    if os.path.exists('/usr/lib/libssl.so') or os.path.exists('/usr/lib/x86_64-linux-gnu/libssl.so'):
+        print(f"{OK_PREFIX}OpenSSL library is installed.")
+    else:
+        print(f"{FAIL_PREFIX}OpenSSL library is not installed.")
+
 
 def check_timesyncd_synchronized():
     """Query the system to see if NTP has synchronized
      WARNING: this is a blocking subprocess."""
 
-    subprocess_instance = subprocess.Popen(['timedatectl'], stdout=subprocess.PIPE,
-                                           universal_newlines=True)
-    cmd_out, _error = subprocess_instance.communicate()
+    os_name = get_os()
+    if os_name == 'Linux':
+        distro = get_linux_distro()
+        if distro in ['ubuntu', 'debian', 'centos', 'redhat', 'fedora']:
+            subprocess_instance = subprocess.Popen(['timedatectl'], stdout=subprocess.PIPE, universal_newlines=True)
+            cmd_out, _error = subprocess_instance.communicate()
 
-    list_of_parts = cmd_out.split('\n')
-    string_val = list_of_parts[4].strip()
-    list_of_strings = string_val.split(":")
-    string_val = list_of_strings[1].strip()
+            list_of_parts = cmd_out.split('\n')
+            string_val = list_of_parts[4].strip()
+            list_of_strings = string_val.split(":")
+            string_val = list_of_strings[1].strip()
 
-    if string_val == "yes":
-        print("Check time synced: ok")
-        return True
+            if string_val == "yes":
+                print(f"{OK_PREFIX}Time is synchronized.")
+                return True
+            else:
+                print(f"{FAIL_PREFIX}Time not synced. Check your NTP daemon.")
+                return False
+        else:
+            print(f"{FAIL_PREFIX}Aleo-pulse unable to check NTP sync in your {distro} linux distro")
+            return False
+    elif os_name == 'Darwin':
+        try:
+            output = subprocess.check_output(['sntp', '-s'], stderr=subprocess.STDOUT, text=True)
+            if "NTP synchronized: yes" in output:
+                print(f"{OK_PREFIX}Time is synchronized.")
+                return True
+            else:
+                print(f"{FAIL_PREFIX}Time not synced. Check your NTP daemon.")
+                return False
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print(f"{FAIL_PREFIX}'sntp' command not found. This command in required in your OS to check time synced")
+            return False
     else:
-        print("Time not synced. Check your NTP daemon")
+        print(f"{FAIL_PREFIX}Aleo-pulse doesn't support OS: {os_name}")
         return False
 
 
-def detect_net_bandwith():
-    def bytes_to_mb(bytes):
-        KB = 1024 # One Kilobyte is 1024 bytes
-        MB = KB * 1024 # One MB is 1024 KB
-        return int(bytes/MB)
-
-    speed_test = speedtest.Speedtest()
-    download_speed = bytes_to_mb(speed_test.download())
-    upload_speed = bytes_to_mb(speed_test.upload())
-    print("Download speed:", download_speed, "MB/s\n"
-          "Upload speed:", upload_speed, "MB")
-    return upload_speed, download_speed
-
-def check_net(mode = args.mode):
-    upload_speed, download_speed = detect_net_bandwith()
-    if upload_speed < Requirements[mode]['network']:
-        print("Upload speed for", mode, "should be more than:", Requirements[mode]['network'])
+def check_swap():
+    os_name = get_os()
+    if os_name == 'Linux':
+        distro = get_linux_distro()
+        if distro in ['ubuntu', 'debian']:
+            output = subprocess.getoutput("/usr/sbin/swapon -s")
+        elif distro in ['centos', 'redhat', 'fedora']:
+            output = subprocess.getoutput("/sbin/swapon -s")
+        else:
+            print(f"{FAIL_PREFIX}Aleo-pulse unable to check swap setting in your {distro} linux distro")
+            return
+    elif os_name == 'Darwin':
+        output = subprocess.getoutput("sysctl vm.swapusage")
     else:
-        print("Upload speed fits:", upload_speed, "Mb")
+        print(f"{FAIL_PREFIX}Aleo-pulse doesn't support OS: {os_name}")
+        return
 
-    if upload_speed < Requirements[mode]['network']:
-        print("Download speed for", mode, "should be more than:", Requirements[mode]['network'])
+    if output.strip() != '':
+        print(f"{FAIL_PREFIX}Swap should be disabled for best performance.")
     else:
-        print("Download speed fits:", download_speed, "Mb")
+        print(f"{OK_PREFIX}Swap configuration is OK.")
 
-def check_disk_size(mode = args.mode):
-    total = shutil.disk_usage("/")[0]
-    aleo_disk_size = total // 2**30 
-
-    if aleo_disk_size < Requirements[mode]['storage']:
-        print("Storage for", mode, "should be more than:", Requirements[mode]['storage'])
-    else: 
-        print("Storage size fits:", aleo_disk_size, "Gb")
-
-
-def check_num_cpus(mode = args.mode):
-    cpu_count = multiprocessing.cpu_count()
-    if cpu_count < Requirements[mode]['cpu']:
-        print("CPU count for", mode, "should be more than:", Requirements[mode]['cpu'])
-    else: 
-        print("CPU count fits:", cpu_count)
-
-
-def check_gpu(mode = args.mode):
-    if mode == 'prover':
-        print("Check your GPU fits here: https://developer.nvidia.com/cuda-gpus")
-    else: 
-        print("In your mode GPU does not required")
 
 def check_cpu_governor():
-    # Define the path to the scaling_governor file
-    path = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
+    os_name = get_os()
+    if os_name == 'Linux':
 
-    # Find all files that match the pattern
-    governor_files = [f for f in glob.glob(path) if os.path.isfile(f)]
+        # Define the path to the scaling_governor file
+        path = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
 
-    # If there are no governor files, return True
-    if not governor_files:
-        print("no governor detected")
+        # Find all files that match the pattern
+        governor_files = [f for f in glob.glob(path) if os.path.isfile(f)]
 
-    # Check each governor file to see if it is set to "performance"
-    for file_path in governor_files:
-        with open(file_path, "r") as f:
-            governor = f.read().strip()
-        if governor != "performance":
-            print("CPU governor detected that is not set to performance")
+        # If there are no governor files, return True
+        if not governor_files:
+            print(f"{OK_PREFIX}No CPU governor detected")
+
+        # Check each governor file to see if it is set to "performance"
+        for file_path in governor_files:
+            with open(file_path, "r") as f:
+                governor = f.read().strip()
+            if governor != "performance":
+                print(f"{FAIL_PREFIX}CPU governor detected that is not set to performance")
+    elif os_name == 'Darwin':
+        output = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode().strip()
+        if "Apple M" in output:
+            print("CPU governor check skipped for Apple Silicon")
+        else:
+            print("CPU governor check not supported for macOS")
+    else:
+        print(f"{FAIL_PREFIX}Aleo-pulse doesn't support OS: {os_name}")
+
 
 def check_rmem_max():
-    output = os.system("cat /proc/sys/net/core/rmem_max")
-    if int(output) >= MINIMUM_RMEM_MAX:
-        print("Socket recieve buffer ok")
+    os_name = get_os()
+    if os_name == 'Linux':
+        try:
+            output = subprocess.check_output(["sysctl", "-n", "net.core.rmem_max"], universal_newlines=True).strip()
+            if int(output) >= MINIMUM_RMEM_MAX:
+                print(f"{OK_PREFIX}Socket receive buffer OK")
+            else:
+                print(f"{FAIL_PREFIX}For best network performance, increase the maximum socket receive buffer size with `sudo sysctl -w net.core.rmem_max=104857600`")
+        except subprocess.CalledProcessError:
+            print(f"{FAIL_PREFIX}Failed to check rmem_max. Please check manually, should be more than {MINIMUM_RMEM_MAX}")
+    elif os_name == 'Darwin':
+        try:
+            output = subprocess.check_output(["sysctl", "-n", "kern.ipc.maxsockbuf"], universal_newlines=True).strip()
+            if int(output) >= MINIMUM_RMEM_MAX:
+                print(f"{OK_PREFIX}Socket receive buffer OK")
+            else:
+                print(f"{FAIL_PREFIX}For best network performance, increase the maximum socket receive buffer size with `sudo sysctl -w kern.ipc.maxsockbuf=104857600`")
+        except subprocess.CalledProcessError:
+            print(f"{OK_PREFIX}Failed to check kern.ipc.maxsockbuf. Please check manually, should be more than {MINIMUM_RMEM_MAX}")
     else:
-        print("for best network performance, increase maximum socket receive buffer size with `sysctl -w net.core.rmem_max=104857600`")
-
+        print(f"{FAIL_PREFIX}Aleo-pulse doesn't support OS: {os_name}")
 
 def check_wmem_max():
-    output = os.system("cat /proc/sys/net/core/wmem_max")
-    if int(output) >= MINIMUM_WMEM_MAX:
-        print("Maximum socker send buffer ok")
+    os_name = get_os()
+    if os_name == 'Linux':
+        try:
+            output = subprocess.check_output(["sysctl", "-n", "net.core.wmem_max"], universal_newlines=True).strip()
+            if int(output) >= MINIMUM_WMEM_MAX:
+                print(f"{OK_PREFIX}Maximum socket send buffer OK")
+            else:
+                print(f"{FAIL_PREFIX}For best network performance, increase the maximum socket send buffer size with `sudo sysctl -w net.core.wmem_max=104857600`")
+        except subprocess.CalledProcessError:
+            print(f"{FAIL_PREFIX}Failed to check wmem_max. Please check manually, should be more than {MINIMUM_WMEM_MAX}")
+    elif os_name == 'Darwin':
+        try:
+            output = subprocess.check_output(["sysctl", "-n", "kern.ipc.maxsockbuf"], universal_newlines=True).strip()
+            if int(output) >= MINIMUM_WMEM_MAX:
+                print(f"{OK_PREFIX}Maximum socket send buffer OK")
+            else:
+                print(f"{FAIL_PREFIX}For best network performance, increase the maximum socket send buffer size with `sudo sysctl -w kern.ipc.maxsockbuf=104857600`")
+        except subprocess.CalledProcessError:
+            print(f"{FAIL_PREFIX}Failed to check kern.ipc.maxsockbuf. Please check manually, should be more than {MINIMUM_WMEM_MAX}")
     else:
-        print("for best network performance, increase maximum socket send buffer size with `sysctl -w net.core.wmem_max=104857600`")
+        print(f"{FAIL_PREFIX}Aleo-pulse doesn't support OS: {os_name}")
 
-def check_swapoff():
-    output = subprocess.getoutput("/usr/sbin/swapon -s")
-    if output != '':
-        print("Swap should be disabled for best perfomance. Use `swapoff -a` for disabling swap")
+def check_disk_size(mode=args.mode):
+    total = shutil.disk_usage("/")[0]
+    aleo_disk_size = total // 2**30
+
+    if aleo_disk_size < Requirements[mode]['storage']:
+        print(f"{FAIL_PREFIX}Storage for {mode} should be more than: {Requirements[mode]['storage']}")
     else:
-        print("Swap configuration is OK")
+        print(f"{OK_PREFIX}Storage size fits: {aleo_disk_size} Gb")
 
 
-#------- End of checks ---
+def check_num_cpus(mode=args.mode):
+    cpu_count = multiprocessing.cpu_count()
+    if cpu_count < Requirements[mode]['cpu']:
+        print(f"{FAIL_PREFIX}CPU count for {mode} should be more than: {Requirements[mode]['cpu']}")
+    else:
+        print(f"{OK_PREFIX}CPU count fits: {cpu_count}")
+
+
+def check_gpu(mode=args.mode):
+    if mode == 'prover':
+        print("Check your GPU fits here: https://developer.nvidia.com/cuda-gpus")
+    else:
+        print(f"{OK_PREFIX}GPU is not required for your mode")
+
+
+def detect_net_bandwidth():
+    def bytes_to_mb(num_bytes):
+        kb = 1024  # One Kilobyte is 1024 bytes
+        mb = kb * 1024  # One MB is 1024 KB
+        return int(num_bytes/mb)
+
+    try:
+        speed_test = speedtest.Speedtest()
+        download_speed = bytes_to_mb(speed_test.download())
+        upload_speed = bytes_to_mb(speed_test.upload())
+        print(f"Download speed: {download_speed} MB/s")
+        print(f"Upload speed: {upload_speed} MB/s")
+        return upload_speed, download_speed
+    except speedtest.ConfigRetrievalError:
+        print(f"{FAIL_PREFIX}Failed to retrieve Speedtest configuration. Please check your network connection.")
+        return None, None
+    except speedtest.SpeedtestException as e:
+        print(f"{FAIL_PREFIX}An error occurred while running Speedtest: {str(e)}")
+        return None, None
+
+
+def check_net(mode=args.mode):
+    print("Running bandwidth test...")
+    upload_speed, download_speed = detect_net_bandwidth()
+    if upload_speed is None or download_speed is None:
+        print("Skipping network bandwidth check due to errors.")
+        return
+
+    if upload_speed < Requirements[mode]['network']:
+        print(f"{FAIL_PREFIX}Upload speed for {mode} should be more than: {Requirements[mode]['network']} MB/s")
+    else:
+        print(f"{OK_PREFIX}Upload speed fits: {upload_speed} MB/s")
+
+    if download_speed < Requirements[mode]['network']:
+        print(f"{FAIL_PREFIX}Download speed for {mode} should be more than: {Requirements[mode]['network']} MB/s")
+    else:
+        print(f"{OK_PREFIX}Download speed fits: {download_speed} MB/s")
+
+
+# ------- End of checks ---
 
 def check_pulse(mode):
-    #print(Requirements['client']['cpu'])
+    # print(Requirements['client']['cpu'])
+    check_aleo_client()
+    check_aleo_dependencies()
     check_timesyncd_synchronized()
-    check_net()
-    check_disk_size()
-    check_num_cpus()
-    check_gpu()
+    check_net(mode)
+    check_disk_size(mode)
+    check_num_cpus(mode)
+    check_gpu(mode)
     check_cpu_governor()
     check_rmem_max()
     check_wmem_max()
-    check_swapoff()
-
+    check_swap()
 
 
 if __name__ == "__main__":
     check_pulse(args.mode)
-
