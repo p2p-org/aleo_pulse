@@ -1,7 +1,7 @@
 # Aleo pulse
 
 ## About
-Aleo-pulse is a simple Python script inspired by [sui-doctor](https://github.com/MystenLabs/sui-doctor) that allows you to check the basic configuration of a server/workstation, where Aleo is being executed. It can be useful if you don't have automation for server/workstation configuration and want to double-check that your setup is correct.
+Aleo-pulse is a simple Python script inspired by [sui-doctor](https://github.com/MystenLabs/sui-doctor) that allows you to check the basic configuration of a server/workstation where Aleo is being executed. It can be useful if you don’t have automation for server/workstation configuration and want to double-check that your setup is correct.
 
 ## Features
 
@@ -17,10 +17,10 @@ Aleo-pulse is a simple Python script inspired by [sui-doctor](https://github.com
 
 ## Requirements
 
-- Python3+
-- speedtest-cli package (`pip install speedtest-cli`)
+- Python 3+
+- Speedtest-cli package: Install with `pip install speedtest-cli`
 - Operating system: Ubuntu, Debian, CentOS, macOS
-- docker (for future version packed in docker)
+- Docker (for future versions packed in Docker)
 
 ## Installation
 
@@ -47,7 +47,7 @@ Aleo-pulse is a simple Python script inspired by [sui-doctor](https://github.com
 
 ## License
 
-This project is licensed under the Apache 2 License
+This project is licensed under the Apache 2 License.
 
 ## Usage
 
@@ -66,8 +66,8 @@ Example
     ./aleo-pulse.py validator
 
 ## TODO
-- Pack in docker
+- Pack in Docker
 - Tests
-- One 2 All connectivity test(in mainnet)
-- ~Check swap off~
+- One-to-All Connectivity Test (in Mainnet)
+- ~Ensure Swap is Turned Off~
 
