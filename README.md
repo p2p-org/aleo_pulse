@@ -68,6 +68,6 @@ Example
 ## TODO
 - Pack in Docker
 - Tests
-- One-to-All Connectivity Test (in Mainnet)
-- ~Ensure Swap is Turned Off~
+- One-to-all connectivity test (in mainnet)
+- ~Ensure swap is turned off~
 
