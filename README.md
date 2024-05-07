@@ -1,7 +1,7 @@
 # Aleo pulse
 
 ### About:
-Aleo-pulse is simple python script inspired by [sui-doctor](https://github.com/MystenLabs/sui-doctor) that allow you to check basic configuration of server/workstation, where aleo is being executing. It can be useful if you don't have automation for server/workstation configuration and want to double-check that your setup is correct.
+Aleo-pulse is simple Python script inspired by [sui-doctor](https://github.com/MystenLabs/sui-doctor) that allows you to check the basic configuration of server/workstation, where Aleo is being executed. It can be useful if you don't have automation for server/workstation configuration and want to double-check that your setup is correct.
 
 ## Features
 
@@ -35,6 +35,7 @@ Aleo-pulse is simple python script inspired by [sui-doctor](https://github.com/M
 
 3. Install the speedtest-cli package
 
+    pip uninstall speedtest
     pip install speedtest-cli
 
 4. Make the script executable

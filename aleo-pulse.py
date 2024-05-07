@@ -8,6 +8,7 @@ import shutil
 import multiprocessing
 import glob
 import subprocess
+import distro
 import platform
 
 parser = argparse.ArgumentParser(
@@ -47,7 +48,7 @@ def get_os():
 
 
 def get_linux_distro():
-    return platform.dist()[0].lower()
+    return distro.linux_distribution()[0].lower()
 
 
 def check_aleo_client():
